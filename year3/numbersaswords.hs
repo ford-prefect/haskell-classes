@@ -3,20 +3,20 @@ module NumbersAsWords where
 import Data.List (unwords)
 import Data.Maybe (fromJust)
 
-thousands :: [(Int, String)]
+thousands :: [(Integer, String)]
 thousands = [ (1, "thousand")
             , (2, "million")
             , (3, "billion")
             , (4, "trillion")
             ]
 
-thousandsAsWords :: Int -> String
+thousandsAsWords :: Integer -> String
 thousandsAsWords n = fromJust (lookup n thousands)
 
-maxThousands :: Int
-maxThousands = length thousands
+maxThousands :: Integer
+maxThousands = fromIntegral (length thousands)
 
-unitsAsWords :: Int -> String
+unitsAsWords :: Integer -> String
 unitsAsWords n = case n of
   1 -> "one"
   2 -> "two"
@@ -28,7 +28,7 @@ unitsAsWords n = case n of
   8 -> "eight"
   9 -> "nine"
 
-tensAsWords :: Int -> String
+tensAsWords :: Integer -> String
 tensAsWords n = case n of
   1 -> "ten"
   2 -> "twenty"
@@ -40,7 +40,7 @@ tensAsWords n = case n of
   8 -> "eighty"
   9 -> "ninety"
 
-lttAsWords :: Int -> [String]
+lttAsWords :: Integer -> [String]
 lttAsWords n =
   let u = n `mod` 10
       t = n `div` 10 `mod` 10
@@ -63,7 +63,7 @@ lttAsWords n =
     (h, 0, 0) -> [unitsAsWords h, "hundred"]
     (h, t, u) -> unitsAsWords h : "hundred" : lttAsWords (t * 10 + u)
 
-numberAsWords' :: Int -> [String]
+numberAsWords' :: Integer -> [String]
 numberAsWords' n
   | n < 1000          = lttAsWords n
   | p <= maxThousands = concat [ numberAsWords' (n `div` (1000 ^ p))
@@ -79,7 +79,7 @@ numberAsWords' n
     rest = n `mod` (1000 ^ p)
     rest' = n `mod` (1000 ^ maxThousands)
 
-numberAsWords :: Int -> String
+numberAsWords :: Integer -> String
 numberAsWords n
-  | n < 0     = "minus" ++ numberAsWords (-n)
+  | n < 0     = "minus " ++ numberAsWords (-n)
   | otherwise = unwords (numberAsWords' n)
