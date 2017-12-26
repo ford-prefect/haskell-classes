@@ -1,7 +1,7 @@
 module NumbersAsWords where
 
 import Data.List (unwords)
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromJust)
 
 thousands :: [(Int, String)]
 thousands = [ (1, "thousand")
@@ -11,7 +11,7 @@ thousands = [ (1, "thousand")
             ]
 
 thousandsAsWords :: Int -> String
-thousandsAsWords n = fromMaybe undefined (lookup n thousands)
+thousandsAsWords n = fromJust (lookup n thousands)
 
 maxThousands :: Int
 maxThousands = length thousands
