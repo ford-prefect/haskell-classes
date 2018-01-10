@@ -27,8 +27,8 @@ instance Show JsonValue where
                 (JsonBool True)  -> "true"
                 (JsonBool False) -> "false"
                 JsonNull         -> "null"
-                (JsonObject o)   -> "{" ++ showElements showMember o ++ "}"
-                (JsonArray a)    -> "[" ++ showElements show a ++ "]"
+                (JsonObject o)   -> "{ " ++ showElements showMember o ++ " }"
+                (JsonArray a)    -> "[ " ++ showElements show a ++ " ]"
     where
       showMember (k,v) = show k ++ " : " ++ show v
 
