@@ -79,10 +79,10 @@ data BST a = Node a (BST a) (BST a) | EmptyNode deriving (Show)
 
 insert :: Ord a => BST a -> a -> BST a
 insert EmptyNode x = Node x EmptyNode EmptyNode
-insert (Node v l r) x
+insert t@(Node v l r) x
   | x < v     = Node v (insert l x) r
   | x > v     = Node v l (insert r x)
-  | otherwise = error "Tried to insert duplicate"
+  | otherwise = t
 
 instance Ord a => Monoid (BST a) where
   mempty = EmptyNode
