@@ -72,7 +72,7 @@ instance Monoid (List a) where
   mempty = Empty
   mappend Empty b       = b
   mappend a Empty       = a
-  mappend (Cons a as) b = Cons a (as `mappend` b)
+  mappend (Cons a as) b = Cons a (as <> b)
 
 
 data BST a = Node a (BST a) (BST a) | EmptyNode deriving (Show)
@@ -89,4 +89,4 @@ instance Ord a => Monoid (BST a) where
 
   mappend EmptyNode b    = b
   mappend a EmptyNode    = a
-  mappend (Node v l r) b = l `mappend` insert b v `mappend` r
+  mappend (Node v l r) b = l <> insert b v <> r
