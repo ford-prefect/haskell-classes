@@ -14,7 +14,7 @@ emptyCell :: Cell
 emptyCell = OneOf [1..9]
 
 emptyRow :: Row
-emptyRow = replicate 9 emptyCell 
+emptyRow = replicate 9 emptyCell
 
 emptyBoard :: Board
 emptyBoard = replicate 9 emptyRow
@@ -24,7 +24,7 @@ prettyBoard = intercalate "\n\n" . map prettyRow
   where
     prettyCell (Fixed v) = show v
     prettyCell _         = "."
-    
+
     prettyRow = intercalate "  " . map prettyCell
 
 -- "4.....8.5.3..........7......2.....6.....8.4......1.......6.3.7.5..2.....1.4......"
@@ -43,12 +43,12 @@ readBoard b =
         if any isNothing mRow
         then Nothing
         else Just . catMaybes $ mRow
-    
+
     readCell c
       | c == '.'              = Just emptyCell
       | isDigit c && c /= '0' = Just . Fixed . digitToInt $ c
       | otherwise             = Nothing
-    
+
     chunksOf n [] = []
     chunksOf n l =
       let first = take n l
