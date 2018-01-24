@@ -76,6 +76,7 @@ isValid :: Board -> Bool
 isValid = undefined
 
 pickACell :: Board -> (Int, Int)
+pickACell = undefined
 
 makeAGuess :: Board -> Board
 makeAGuess = undefined
