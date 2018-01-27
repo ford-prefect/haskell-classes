@@ -1,7 +1,7 @@
 module Sudoku where
 
 import Data.Char (digitToInt, isDigit)
-import Data.List ((\\), intercalate, nub, sortBy)
+import Data.List ((\\), intercalate, intersect, sortBy)
 import Data.Maybe (catMaybes, isNothing, mapMaybe)
 import Data.Monoid (First(..))
 import Data.Map ((!))
@@ -21,18 +21,18 @@ emptyCell = OneOf [1..9]
 emptyBoard :: Board
 emptyBoard = M.fromList . zip allPositions . repeat $ emptyCell
 
-getRow :: Board -> Int -> [Cell]
-getRow b r = map (\c -> b ! (r, c)) [0 .. 8]
+getRow :: Board -> Int -> M.Map Position Cell
+getRow b r = M.filterWithKey (\p _ -> r == fst p) b
 
-getColumn :: Board -> Int -> [Cell]
-getColumn b c = map (\r -> b ! (r, c)) [0 .. 8]
+getColumn :: Board -> Int -> M.Map Position Cell
+getColumn b c = M.filterWithKey (\p _ -> c == snd p) b
 
-getBlock :: Board -> (Int, Int) -> [Cell]
-getBlock b (r, c) = map (\p -> b ! p) positions
+getBlock :: Board -> (Int, Int) -> M.Map Position Cell
+getBlock b p = M.filterWithKey (\pos _ -> p == block pos) b
   where
-    positions = [ (r, c) | r <- take 3 [r*3..], c <- take 3 [c*3..] ]
+    block (r, c) = (r `quot` 3, c `quot` 3)
 
-allGroups :: Board -> [[Cell]]
+allGroups :: Board -> [M.Map Position Cell]
 allGroups b =
   let rows   = map (getRow b) [0..8]
       cols   = map (getColumn b) [0..8]
@@ -42,11 +42,11 @@ allGroups b =
 
 prettyBoard :: Board -> String
 prettyBoard board = intercalate "\n" $
-                      map (prettyRow . getRow board) [0..2] ++
+                      map (prettyRow . M.elems . getRow board) [0..2] ++
                       [replicate 21 '-'] ++
-                      map (prettyRow . getRow board) [3..5] ++
+                      map (prettyRow . M.elems . getRow board) [3..5] ++
                       [replicate 21 '-'] ++
-                      map (prettyRow . getRow board) [6..8]
+                      map (prettyRow . M.elems . getRow board) [6..8]
   where
     prettyCell (Fixed v) = show v
     prettyCell _         = "."
@@ -95,31 +95,34 @@ setCell board (r, c) newCell = M.insert (r, c) newCell board
 isFinished :: Board -> Bool
 isFinished = all isFixed
 
+pruneGroup :: Board -> M.Map Position Cell -> Board
+pruneGroup b group = M.unionWith intersectCells b prunedGroup
+  where
+    prunedGroup = M.map pruneCell group
+
+    del = [ v | Fixed v <- M.elems . M.filter isFixed $ group ]
+
+    pruneCell (Fixed v) = Fixed v
+    pruneCell (OneOf vs) =
+      let rem = vs \\ del
+      in
+        if length rem == 1
+        then Fixed . head $ rem
+        else OneOf rem
+
+    intersectCells (OneOf vs1) (OneOf vs2) = OneOf (vs1 `intersect` vs2)
+    intersectCells (Fixed v1)  (Fixed v2)  = if v1 == v2 then Fixed v1 else OneOf []
+    intersectCells (Fixed v1)  _           = Fixed v1
+    intersectCells _           (Fixed v2)  = Fixed v2
+
 pruneBoard :: Board -> Board
 pruneBoard b =
-  let 
-    newB = foldl pruneCell b allPositions
+  let
+    newB = foldl pruneGroup b . allGroups $ b
   in
     if b == newB
     then b
     else pruneBoard newB
-  where
-
-    pruneCell board (r, c) =
-      let inputCells  = getRow board r ++
-                        getColumn board c ++
-                        getBlock board (r `quot` 3, c `quot` 3)
-          fixedValues = nub [ v | Fixed v <- inputCells ]
-          oldCell     = getCell board (r, c)
-          newCell     = pruneCell' oldCell fixedValues
-      in
-        setCell board (r, c) newCell
-      where
-        pruneCell' (Fixed f) _      = Fixed f
-        pruneCell' (OneOf vs) fixed = let rem = vs \\ fixed
-                                      in if length rem == 1
-                                         then Fixed . head $ rem
-                                         else OneOf rem
 
 isFixed :: Cell -> Bool
 isFixed (Fixed _) = True
@@ -128,11 +131,12 @@ isFixed _         = False
 isValid :: Board -> Bool
 isValid b = noEmptyOneOf && allUniqueFixed
   where
-    noEmptyOneOf = OneOf [] `notElem` b
-    allUniqueFixed = all (unique . sortBy sortFixed . filter isFixed) (allGroups b)
+    noEmptyOneOf   = OneOf [] `notElem` b
+    allUniqueFixed = all (unique . sortBy sortFixed . filter isFixed) groupList
+    groupList      = map M.elems . allGroups $ b
 
-    unique [] = True
-    unique [x] = True
+    unique []     = True
+    unique [x]    = True
     unique (x:xs) = x /= head xs && unique xs
 
     sortFixed (Fixed x) (Fixed y) = compare x y
