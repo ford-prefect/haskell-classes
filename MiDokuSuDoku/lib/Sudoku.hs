@@ -2,34 +2,35 @@ module Sudoku where
 
 import Data.Char (digitToInt, isDigit)
 import Data.List ((\\), intercalate, nub, sortBy)
-import Data.Maybe (catMaybes, isNothing)
+import Data.Maybe (catMaybes, isNothing, mapMaybe)
 import Data.Monoid (First(..))
+import Data.Map ((!))
+import qualified Data.Map as M
 
 data Cell = Fixed Int | OneOf [Int] deriving (Eq, Show)
 
-type Row = [Cell]
+type Position = (Int, Int)
 
-type Board = [Row]
+allPositions = [ (r, c) | r <- [0..8], c <- [0..8] ]
+
+type Board = M.Map Position Cell
 
 emptyCell :: Cell
 emptyCell = OneOf [1..9]
 
-emptyRow :: Row
-emptyRow = replicate 9 emptyCell
-
 emptyBoard :: Board
-emptyBoard = replicate 9 emptyRow
+emptyBoard = M.fromList . zip allPositions . repeat $ emptyCell
 
 getRow :: Board -> Int -> [Cell]
-getRow b i = b !! i
+getRow b r = map (\c -> b ! (r, c)) [0 .. 8]
 
 getColumn :: Board -> Int -> [Cell]
-getColumn b i = map (!! i) b
+getColumn b c = map (\r -> b ! (r, c)) [0 .. 8]
 
 getBlock :: Board -> (Int, Int) -> [Cell]
-getBlock b (r, c) =
-  let rows = take 3 . drop (3 * r) $ b
-  in concatMap (take 3 . drop (3 * c)) rows
+getBlock b (r, c) = map (\p -> b ! p) positions
+  where
+    positions = [ (r, c) | r <- take 3 [r*3..], c <- take 3 [c*3..] ]
 
 allGroups :: Board -> [[Cell]]
 allGroups b =
@@ -38,13 +39,14 @@ allGroups b =
       blocks = map (getBlock b) [ (r, c) | r <- [0..2], c <- [0..2] ]
   in
       rows ++ cols ++ blocks
+
 prettyBoard :: Board -> String
 prettyBoard board = intercalate "\n" $
-                      map prettyRow (take 3 board) ++
+                      map (prettyRow . getRow board) [0..2] ++
                       [replicate 21 '-'] ++
-                      map prettyRow (take 3 . drop 3 $ board) ++
+                      map (prettyRow . getRow board) [3..5] ++
                       [replicate 21 '-'] ++
-                      map prettyRow (take 3 . drop 6 $ board)
+                      map (prettyRow . getRow board) [6..8]
   where
     prettyCell (Fixed v) = show v
     prettyCell _         = "."
@@ -58,13 +60,13 @@ prettyBoard board = intercalate "\n" $
 -- "4.....8.5.3..........7......2.....6.....8.4......1.......6.3.7.5..2.....1.4......"
 readBoard :: String -> Maybe Board
 readBoard b =
-  let mBoard = map readRow . chunksOf 9 $ b
+  let allCells = concat . mapMaybe readRow . chunksOf 9 $ b
   in
-    if length b /= 81 || any isNothing mBoard
+    if length allCells /= 81
     then Nothing
-    else Just . pruneBoard . catMaybes $ mBoard
+    else Just . pruneBoard . M.fromList . zip allPositions $ allCells
   where
-    readRow :: String -> Maybe Row
+    readRow :: String -> Maybe [Cell]
     readRow r =
       let mRow = map readCell r
       in
@@ -85,31 +87,23 @@ readBoard b =
         first : rest
 
 getCell :: Board -> (Int, Int) -> Cell
-getCell board (r, c) = (board !! r) !! c
+getCell board (r, c) = board ! (r, c)
 
 setCell :: Board -> (Int, Int) -> Cell -> Board
-setCell board (r, c) newCell = 
-  let oldRow = board !! r
-      newRow = replace oldRow c newCell
-  in
-    replace board r newRow
-
-replace :: [a] -> Int -> a -> [a]
-replace l pos new = take pos l ++ [new] ++ drop (pos +1) l
+setCell board (r, c) newCell = M.insert (r, c) newCell board
 
 isFinished :: Board -> Bool
-isFinished = all isFixed . concat
+isFinished = all isFixed
 
 pruneBoard :: Board -> Board
 pruneBoard b =
   let 
-    newB = foldl pruneCell b allCells
+    newB = foldl pruneCell b allPositions
   in
     if b == newB
     then b
     else pruneBoard newB
   where
-    allCells = [ (r, c) | r <- [0..8], c <- [0..8] ]
 
     pruneCell board (r, c) =
       let inputCells  = getRow board r ++
@@ -134,7 +128,7 @@ isFixed _         = False
 isValid :: Board -> Bool
 isValid b = noEmptyOneOf && allUniqueFixed
   where
-    noEmptyOneOf = OneOf [] `notElem` concat b
+    noEmptyOneOf = OneOf [] `notElem` b
     allUniqueFixed = all (unique . sortBy sortFixed . filter isFixed) (allGroups b)
 
     unique [] = True
