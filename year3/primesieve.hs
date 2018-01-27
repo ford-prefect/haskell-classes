@@ -22,3 +22,12 @@ primes' :: Integer -> [Integer]
 primes' n
   | n < 0     = []
   | otherwise = take (fromIntegral n) (filter isPrime [2 .. ])
+
+efficientPrimes :: [Int]
+efficientPrimes = 2 : filter efficientIsPrime [3 .. ]
+
+efficientIsPrime :: Int -> Bool
+efficientIsPrime i = all (\a -> i `mod` a /= 0) (takeWhile (\p -> p*p <= i) efficientPrimes)
+
+efficientNPrimes :: Int -> [Int]
+efficientNPrimes n = take n efficientPrimes
