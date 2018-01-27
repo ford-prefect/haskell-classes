@@ -20,12 +20,21 @@ emptyBoard :: Board
 emptyBoard = replicate 9 emptyRow
 
 prettyBoard :: Board -> String
-prettyBoard = intercalate "\n\n" . map prettyRow
+prettyBoard board = intercalate "\n" $
+                      map prettyRow (take 3 board) ++
+                      [replicate 21 '-'] ++
+                      map prettyRow (take 3 . drop 3 $ board) ++
+                      [replicate 21 '-'] ++
+                      map prettyRow (take 3 . drop 6 $ board)
   where
     prettyCell (Fixed v) = show v
     prettyCell _         = "."
 
-    prettyRow = intercalate "  " . map prettyCell
+    prettyRow row = prettyRowBlock (take 3 row           ) ++ " | " ++
+                    prettyRowBlock (take 3 . drop 3 $ row) ++ " | " ++
+                    prettyRowBlock (take 3 . drop 6 $ row)
+
+    prettyRowBlock = unwords . map prettyCell
 
 -- "4.....8.5.3..........7......2.....6.....8.4......1.......6.3.7.5..2.....1.4......"
 readBoard :: String -> Maybe Board
