@@ -5,9 +5,11 @@ import Data.List ((\\), intercalate, intersect, sortBy)
 import Data.Maybe (catMaybes, isNothing, mapMaybe)
 import Data.Monoid (First(..))
 import Data.Map ((!))
-import qualified Data.Map as M
 
-data Cell = Fixed Int | OneOf [Int] deriving (Eq, Show)
+import qualified Data.Map as M
+import qualified Data.IntSet as S
+
+data Cell = Fixed Int | OneOf S.IntSet deriving (Eq, Show)
 
 type Position = (Int, Int)
 
@@ -16,7 +18,7 @@ allPositions = [ (r, c) | r <- [0..8], c <- [0..8] ]
 type Board = M.Map Position Cell
 
 emptyCell :: Cell
-emptyCell = OneOf [1..9]
+emptyCell = OneOf . S.fromList $ [1..9]
 
 emptyBoard :: Board
 emptyBoard = M.fromList . zip allPositions . repeat $ emptyCell
@@ -100,18 +102,18 @@ pruneGroup b group = M.unionWith intersectCells b prunedGroup
   where
     prunedGroup = M.map pruneCell group
 
-    del = [ v | Fixed v <- M.elems . M.filter isFixed $ group ]
+    del = S.fromList [ v | Fixed v <- M.elems . M.filter isFixed $ group ]
 
     pruneCell (Fixed v) = Fixed v
     pruneCell (OneOf vs) =
-      let rem = vs \\ del
+      let rem = vs `S.difference` del
       in
-        if length rem == 1
-        then Fixed . head $ rem
+        if S.size rem == 1
+        then Fixed . S.findMin $ rem
         else OneOf rem
 
-    intersectCells (OneOf vs1) (OneOf vs2) = OneOf (vs1 `intersect` vs2)
-    intersectCells (Fixed v1)  (Fixed v2)  = if v1 == v2 then Fixed v1 else OneOf []
+    intersectCells (OneOf vs1) (OneOf vs2) = OneOf (vs1 `S.intersection` vs2)
+    intersectCells (Fixed v1)  (Fixed v2)  = if v1 == v2 then Fixed v1 else OneOf S.empty
     intersectCells (Fixed v1)  _           = Fixed v1
     intersectCells _           (Fixed v2)  = Fixed v2
 
@@ -131,7 +133,7 @@ isFixed _         = False
 isValid :: Board -> Bool
 isValid b = noEmptyOneOf && allUniqueFixed
   where
-    noEmptyOneOf   = OneOf [] `notElem` b
+    noEmptyOneOf   = OneOf S.empty `notElem` b
     allUniqueFixed = all (unique . sortBy sortFixed . filter isFixed) groupList
     groupList      = map M.elems . allGroups $ b
 
@@ -149,7 +151,7 @@ openPositions b =
     sortBy lessOpen positions
   where
     cellLength pos     = case getCell b pos of
-                              OneOf vs -> length vs
+                              OneOf vs -> S.size vs
                               Fixed _  -> 0 -- never reached
     lessOpen pos1 pos2 = compare (cellLength pos1) (cellLength pos2)
 
@@ -162,7 +164,7 @@ makeAGuess board =
     fixOne pos =
       let
         OneOf vs  = getCell board pos
-        boards    = map (setCell board pos . Fixed) vs
+        boards    = map (setCell board pos . Fixed) . S.toList $ vs
       in
         map (First . solve . pruneBoard) boards
 
