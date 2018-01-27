@@ -1,0 +1,61 @@
+-- This file has been generated from package.yaml by hpack version 0.21.2.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: c8f17f0c8a881d54e42f0bc9c8eed62724adda4eed6e0f868f6afe17f10bc800
+
+name:           MiDokuSuDoku
+version:        0.1.0.0
+description:    Please see the README on Github at <https://github.com/ford-prefect/MiDokuSuDoku#readme>
+homepage:       https://github.com/ford-prefect/MiDokuSuDoku#readme
+bug-reports:    https://github.com/ford-prefect/MiDokuSuDoku/issues
+author:         Arun Raghavan
+maintainer:     arun@arunraghavan.net
+copyright:      2018 Arun Raghavan
+license:        BSD3
+license-file:   LICENSE
+build-type:     Simple
+cabal-version:  >= 1.10
+
+extra-source-files:
+    README.md
+
+source-repository head
+  type: git
+  location: https://github.com/ford-prefect/MiDokuSuDoku
+
+library
+  exposed-modules:
+      Sudoku
+  other-modules:
+      Paths_MiDokuSuDoku
+  hs-source-dirs:
+      lib
+  build-depends:
+      base >=4.7 && <5
+  default-language: Haskell2010
+
+executable MiDokuSuDoku-exe
+  main-is: Main.hs
+  other-modules:
+      Paths_MiDokuSuDoku
+  hs-source-dirs:
+      app
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      MiDokuSuDoku
+    , base >=4.7 && <5
+  default-language: Haskell2010
+
+test-suite MiDokuSuDoku-test
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  other-modules:
+      Paths_MiDokuSuDoku
+  hs-source-dirs:
+      test
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      MiDokuSuDoku
+    , base >=4.7 && <5
+  default-language: Haskell2010
