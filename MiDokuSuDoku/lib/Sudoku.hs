@@ -66,7 +66,7 @@ readBoard b =
   in
     if length allCells /= 81
     then Nothing
-    else Just . pruneBoard . M.fromList . zip allPositions $ allCells
+    else Just . M.fromList . zip allPositions $ allCells
   where
     readRow :: String -> Maybe [Cell]
     readRow r =
