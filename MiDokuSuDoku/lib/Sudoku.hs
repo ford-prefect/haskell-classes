@@ -44,12 +44,13 @@ allGroups b =
 
 prettyBoard :: Board -> String
 prettyBoard board = intercalate "\n" $
-                      map (prettyRow . M.elems . getRow board) [0..2] ++
+                      map (prettyRow . rowAsList . getRow board) [0..2] ++
                       [replicate 21 '-'] ++
-                      map (prettyRow . M.elems . getRow board) [3..5] ++
+                      map (prettyRow . rowAsList . getRow board) [3..5] ++
                       [replicate 21 '-'] ++
-                      map (prettyRow . M.elems . getRow board) [6..8]
+                      map (prettyRow . rowAsList . getRow board) [6..8]
   where
+    rowAsList = map snd . sortBy (\(p1, _) (p2, _) -> compare p1 p2) . M.toList
     prettyCell (Fixed v) = show v
     prettyCell _         = "."
 
@@ -62,31 +63,16 @@ prettyBoard board = intercalate "\n" $
 -- "4.....8.5.3..........7......2.....6.....8.4......1.......6.3.7.5..2.....1.4......"
 readBoard :: String -> Maybe Board
 readBoard b =
-  let allCells = concat . mapMaybe readRow . chunksOf 9 $ b
+  let allCells = mapMaybe readCell b
   in
     if length allCells /= 81
     then Nothing
     else Just . M.fromList . zip allPositions $ allCells
   where
-    readRow :: String -> Maybe [Cell]
-    readRow r =
-      let mRow = map readCell r
-      in
-        if any isNothing mRow
-        then Nothing
-        else Just . catMaybes $ mRow
-
     readCell c
       | c == '.'              = Just emptyCell
       | isDigit c && c /= '0' = Just . Fixed . digitToInt $ c
       | otherwise             = Nothing
-
-    chunksOf n [] = []
-    chunksOf n l =
-      let first = take n l
-          rest = chunksOf n (drop n l)
-      in
-        first : rest
 
 getCell :: Board -> (Int, Int) -> Cell
 getCell board (r, c) = board ! (r, c)
