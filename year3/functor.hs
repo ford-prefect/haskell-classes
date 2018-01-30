@@ -12,6 +12,11 @@ instance Functor Maybe' where
   fmap _ Nothing' = Nothing'
   fmap f (Just' a) = Just' (f a)
 
+instance Applicative Maybe' where
+  pure = Just'
+  Just' f <*> Just' v = Just' (f v)
+  _       <*> _       = Nothing'
+
 
 data Either' a b = Left' a | Right' b deriving (Show)
 
@@ -19,12 +24,27 @@ instance Functor (Either' a) where
   fmap _ (Left' l)  = Left' l
   fmap f (Right' r) = Right' (f r)
 
+instance Applicative (Either' a) where
+  pure = Right'
+  Right' f <*> Right' v = Right' (f v)
+  Left' e1 <*> _        = Left' e1
+  _        <*> Left' e2 = Left' e2
+
 
 data List a = Cons a (List a) | Empty deriving (Show)
+
+lappend :: List a -> List a -> List a
+lappend l1 Empty = l1
+lappend (Cons l1 l1s) l2 = Cons l1 (l1s `lappend` l2)
 
 instance Functor List where
   fmap _ Empty       = Empty
   fmap f (Cons x xs) = Cons (f x) (fmap f xs)
+
+instance Applicative List where
+  pure x = Cons x Empty
+  (Cons f fs) <*> vs = fmap f vs `lappend` (fs <*> vs)
+  _           <*> _  = Empty
 
 
 data BST a = Node a (BST a) (BST a) | EmptyNode deriving (Show)
