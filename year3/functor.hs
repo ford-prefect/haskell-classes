@@ -5,13 +5,20 @@ newtype Identity a = Identity a deriving (Show)
 instance Functor Identity where
   fmap f (Identity a) = Identity (f a)
 
---instance Functor Maybe where
---  fmap _ Nothing = Nothing
---  fmap f (Just a) = Just (f a)
---
---instance Functor (Either a) where
---  fmap _ (Left l)  = Left l
---  fmap f (Right r) = Right (f r)
+
+data Maybe' a = Just' a | Nothing' deriving (Show)
+
+instance Functor Maybe' where
+  fmap _ Nothing' = Nothing'
+  fmap f (Just' a) = Just' (f a)
+
+
+data Either' a b = Left' a | Right' b deriving (Show)
+
+instance Functor (Either' a) where
+  fmap _ (Left' l)  = Left' l
+  fmap f (Right' r) = Right' (f r)
+
 
 data List a = Cons a (List a) | Empty deriving (Show)
 
