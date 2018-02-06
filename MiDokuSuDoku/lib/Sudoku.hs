@@ -169,16 +169,12 @@ pickPosition b =
     lessOpen pos1 pos2 = compare (cellLength pos1) (cellLength pos2)
 
 makeAGuess :: Board -> Position -> Maybe Board
-makeAGuess board pos = makeAGuess' values
+makeAGuess board pos = asum solutions
   where
     (OneOf v) = getCell board pos
     values    = optionsToList v
-
-    makeAGuess' []     = Nothing
-    makeAGuess' (v:vs) =
-      case solve . setCell board pos $ Fixed v of
-           Just soln -> Just soln
-           Nothing   -> makeAGuess' vs
+    boards    = map (setCell board pos . Fixed) values
+    solutions = map solve boards
 
 solve :: Board -> Maybe Board
 solve b
