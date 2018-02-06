@@ -15,7 +15,7 @@ instance Show Options where
   show = show . optionsToList
 
 optionsToList :: Options -> [Int]
-optionsToList (Options o) = map (+1) . filter (testBit o) $ [0..8]
+optionsToList (Options o) = filter (testBit o) [1..9]
 
 type Position = (Int, Int)
 
@@ -25,7 +25,7 @@ type Board = V.Vector Cell
 type Group = V.Vector (Int, Cell)
 
 allOptions :: Int
-allOptions = foldl setBit 0 [0..8]
+allOptions = foldl setBit 0 [1..9]
 
 emptyCell :: Cell
 emptyCell = OneOf . Options $ allOptions
@@ -126,7 +126,7 @@ pruneGroup b getGroup = V.update b prunedGroup
     group       = getGroup b
     prunedGroup = V.map pruneCell group
 
-    fixeds      = V.map ((\x -> x - 1) . getFixed . snd) . V.filter (isFixed . snd) $ group
+    fixeds      = V.map (getFixed . snd) . V.filter (isFixed . snd) $ group
     --clumps n  = [ vs | OneOf vs <- groupList,
     --                   IS.size vs == n,
     --                   lngth (elemIndices (OneOf vs) groupList) == n ]
@@ -141,7 +141,7 @@ pruneGroup b getGroup = V.update b prunedGroup
         (i, newCell $ vs .&. complement del .&. allOptions)
 
     newCell opts = if popCount opts == 1
-                   then Fixed $ 1 + countTrailingZeros opts
+                   then Fixed . countTrailingZeros $ opts
                    else OneOf . Options $ opts
 
 pruneBoard :: Board -> Board
