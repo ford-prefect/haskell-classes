@@ -42,7 +42,7 @@ executable MiDokuSuDoku-exe
       Paths_MiDokuSuDoku
   hs-source-dirs:
       app
-  ghc-options: -Wall -O2
+  ghc-options: -Wall -O2 -rtsopts
   build-depends:
       MiDokuSuDoku
     , base >=4.7 && <5
