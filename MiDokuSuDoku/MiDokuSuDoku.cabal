@@ -33,8 +33,7 @@ library
       lib
   build-depends:
       base >=4.7 && <5
-    , containers
-    , unordered-containers
+    , vector
   default-language: Haskell2010
 
 executable MiDokuSuDoku-exe
@@ -43,7 +42,7 @@ executable MiDokuSuDoku-exe
       Paths_MiDokuSuDoku
   hs-source-dirs:
       app
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N -O2
+  ghc-options: -Wall -O2
   build-depends:
       MiDokuSuDoku
     , base >=4.7 && <5
@@ -56,7 +55,7 @@ test-suite MiDokuSuDoku-test
       Paths_MiDokuSuDoku
   hs-source-dirs:
       test
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N -O2
+  ghc-options: -Wall -O2
   build-depends:
       MiDokuSuDoku
     , base >=4.7 && <5

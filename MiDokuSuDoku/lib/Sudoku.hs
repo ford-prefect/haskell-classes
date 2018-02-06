@@ -1,43 +1,65 @@
 module Sudoku where
 
+import Data.Bits ((.&.), complement, countTrailingZeros, popCount, setBit, testBit)
 import Data.Char (digitToInt, isDigit)
 import Data.Foldable (asum)
-import Data.List ((\\), elemIndices, intercalate, intersect, sortBy)
-import Data.Maybe (catMaybes, isNothing, mapMaybe)
-import Data.Monoid (First(..))
-import Data.Map.Lazy ((!))
+import Data.List (intercalate, minimumBy)
+import Data.Maybe (isNothing, mapMaybe)
 
-import qualified Data.IntSet as IS
-import qualified Data.Map.Lazy as M
+import qualified Data.Vector as V
+import qualified Data.Vector.Mutable as MV
 
-import Debug.Trace
+newtype Options = Options Int deriving (Eq, Ord)
 
-data Cell = Fixed Int | OneOf IS.IntSet deriving (Eq, Ord, Show)
+instance Show Options where
+  show = show . optionsToList
+
+optionsToList :: Options -> [Int]
+optionsToList (Options o) = map (+1) . filter (testBit o) $ [0..8]
 
 type Position = (Int, Int)
 
-allPositions = [ (r, c) | r <- [0..8], c <- [0..8] ]
+data Cell = Fixed Int | OneOf Options deriving (Eq, Ord, Show)
 
-type Board = M.Map Position Cell
+type Board = V.Vector Cell
+type Group = V.Vector (Int, Cell)
+
+allOptions :: Int
+allOptions = foldl setBit 0 [0..8]
 
 emptyCell :: Cell
-emptyCell = OneOf . IS.fromList $ [1..9]
+emptyCell = OneOf . Options $ allOptions
 
 emptyBoard :: Board
-emptyBoard = M.fromList . zip allPositions . repeat $ emptyCell
+emptyBoard = V.replicate 81 emptyCell
 
-getRow :: Board -> Int -> M.Map Position Cell
-getRow b r = M.filterWithKey (\p _ -> r == fst p) b
+positionToIndex :: Position -> Int
+positionToIndex (r, c) = r * 9 + c
 
-getColumn :: Board -> Int -> M.Map Position Cell
-getColumn b c = M.filterWithKey (\p _ -> c == snd p) b
+getCell :: Board -> Position -> Cell
+getCell b p = b V.! positionToIndex p
 
-getBlock :: Board -> (Int, Int) -> M.Map Position Cell
-getBlock b p = M.filterWithKey (\pos _ -> p == block pos) b
+setCell :: Board -> Position -> Cell -> Board
+setCell b p cell = V.modify (\v -> MV.write v (positionToIndex p) cell) b
+
+getRow :: Board -> Int -> Group
+getRow b r = V.imap (\i v -> (r*9 + i, v)) row
   where
-    block (r, c) = (r `quot` 3, c `quot` 3)
+    row = V.take 9 . V.drop (r * 9) $ b
 
-allGroups :: Board -> [M.Map Position Cell]
+getColumn :: Board -> Int -> Group
+getColumn b c = V.imap (\i v -> (i*9 + c, v)) col
+  where
+    col = V.ifilter (\i _ -> i `mod` 9 == c) b
+
+getBlock :: Board -> (Int, Int) -> Group
+getBlock b p@(r, c) = V.imap (\i v -> (cellPos i, v)) block
+  where
+    cellPos i = r*3*9 + c*3 + i `mod` 3 + (i `div` 3)*9
+    block = V.ifilter (\i _ -> p == blockPos i) b
+    blockPos i = ((i `div` 9) `quot` 3, (i `mod` 9) `quot` 3)
+
+allGroups :: Board -> [Group]
 allGroups b =
   let rows   = map (getRow b) [0..8]
       cols   = map (getColumn b) [0..8]
@@ -47,13 +69,12 @@ allGroups b =
 
 prettyBoard :: Board -> String
 prettyBoard board = intercalate "\n" $
-                      map (prettyRow . rowAsList . getRow board) [0..2] ++
-                      [replicate 21 '-'] ++
-                      map (prettyRow . rowAsList . getRow board) [3..5] ++
-                      [replicate 21 '-'] ++
-                      map (prettyRow . rowAsList . getRow board) [6..8]
+                      map (prettyRow . V.toList . snd . V.unzip . getRow board) [0..2] ++
+                      divider ++
+                      map (prettyRow . V.toList . snd . V.unzip . getRow board) [3..5] ++
+                      divider ++
+                      map (prettyRow . V.toList . snd . V.unzip . getRow board) [6..8]
   where
-    rowAsList = map snd . sortBy (\(p1, _) (p2, _) -> compare p1 p2) . M.toList
     prettyCell (Fixed v) = show v
     prettyCell _         = "."
 
@@ -63,6 +84,8 @@ prettyBoard board = intercalate "\n" $
 
     prettyRowBlock = unwords . map prettyCell
 
+    divider = [replicate 6 '-' ++ "+" ++ replicate 7 '-' ++ "+" ++ replicate 6 '-']
+
 -- "4.....8.5.3..........7......2.....6.....8.4......1.......6.3.7.5..2.....1.4......"
 readBoard :: String -> Maybe Board
 readBoard b =
@@ -70,56 +93,56 @@ readBoard b =
   in
     if length allCells /= 81
     then Nothing
-    else Just . M.fromList . zip allPositions $ allCells
+    else Just . V.fromList $ allCells
   where
     readCell c
       | c == '.'              = Just emptyCell
       | isDigit c && c /= '0' = Just . Fixed . digitToInt $ c
       | otherwise             = Nothing
 
-getCell :: Board -> (Int, Int) -> Cell
-getCell board (r, c) = board ! (r, c)
+getFixed :: Cell -> Int
+getFixed (Fixed f) = f
+getFixed (OneOf _) = error "Unexpected OneOf"
 
-setCell :: Board -> (Int, Int) -> Cell -> Board
-setCell board (r, c) newCell = M.insert (r, c) newCell board
+isFixed :: Cell -> Bool
+isFixed (Fixed _) = True
+isFixed _         = False
 
 isFinished :: Board -> Bool
-isFinished = all isFixed
+isFinished = isNothing . V.find (not . isFixed)
 
-pruneGroup :: Board -> (Board -> M.Map Position Cell) -> Board
-pruneGroup b getGroup = M.unionWith intersectCells b prunedGroup
+isValid :: Board -> Bool
+isValid b = noEmptyOneOf && allUniqueFixed
+  where
+    noEmptyOneOf   = OneOf (Options 0) `notElem` b
+    allUniqueFixed = all (unique . V.filter (isFixed . snd)) . allGroups $ b
+
+    zero     = 0 :: Int
+    unique g = (popCount . V.foldl setBit zero . V.map (getFixed . snd) $ g) == V.length g
+
+pruneGroup :: Board -> (Board -> Group) -> Board
+pruneGroup b getGroup = V.update b prunedGroup
   where
     group       = getGroup b
-    prunedGroup = M.map pruneCell group
+    prunedGroup = V.map pruneCell group
 
-    groupList = M.elems group
-    fixeds    = IS.fromList [ v | Fixed v <- groupList ]
-    clumps n  = [ vs | OneOf vs <- groupList,
-                       IS.size vs == n,
-                       length (elemIndices (OneOf vs) groupList) == n ]
-    allClumps = clumps 2 ++ clumps 3
-    all       = IS.unions $ fixeds : allClumps
+    fixeds      = V.map ((\x -> x - 1) . getFixed . snd) . V.filter (isFixed . snd) $ group
+    --clumps n  = [ vs | OneOf vs <- groupList,
+    --                   IS.size vs == n,
+    --                   lngth (elemIndices (OneOf vs) groupList) == n ]
+    --allClumps = clumps 2 ++ clumps 3
+    --all       = IS.unions $ fixeds : allClumps
 
-    twoOptions (Fixed _)  = False
-    twoOptions (OneOf vs) = IS.size vs == 2
-
-    pruneCell (Fixed v) = Fixed v
-    pruneCell (OneOf vs) =
+    pruneCell (i, Fixed v)  = (i, Fixed v)
+    pruneCell (i, OneOf (Options vs)) =
       let
-        del = if vs `elem` allClumps
-              then fixeds
-              else all
+        del = V.foldl setBit 0 fixeds
       in
-        newCell $ vs `IS.difference` del
+        (i, newCell $ vs .&. complement del .&. allOptions)
 
-    intersectCells (OneOf vs1) (OneOf vs2) = newCell $ vs1 `IS.intersection` vs2
-    intersectCells (Fixed v1)  (Fixed v2)  = if v1 == v2 then Fixed v1 else OneOf IS.empty
-    intersectCells (Fixed v1)  _           = Fixed v1
-    intersectCells _           (Fixed v2)  = Fixed v2
-
-    newCell options = if IS.size options == 1
-                      then Fixed . IS.findMin $ options
-                      else OneOf options
+    newCell opts = if popCount opts == 1
+                   then Fixed $ 1 + countTrailingZeros opts
+                   else OneOf . Options $ opts
 
 pruneBoard :: Board -> Board
 pruneBoard b =
@@ -133,44 +156,34 @@ pruneBoard b =
     then b
     else pruneBoard newB
 
-isFixed :: Cell -> Bool
-isFixed (Fixed _) = True
-isFixed _         = False
-
-isValid :: Board -> Bool
-isValid b = noEmptyOneOf && allUniqueFixed
-  where
-    noEmptyOneOf   = OneOf IS.empty `notElem` b
-    allUniqueFixed = all (unique . M.filter isFixed) . allGroups $ b
-
-    unique g = (IS.size . IS.fromList . M.elems . M.map fixedToInt $ g) == M.size g
-    fixedToInt (Fixed v) = v
-
-openPositions :: Board -> [(Int, Int)]
-openPositions b =
+pickPosition :: Board -> (Int, Int)
+pickPosition b =
   let
     positions = [(r, c) | r <- [0..8], c <- [0..8], not . isFixed $ getCell b (r, c)]
   in
-    sortBy lessOpen positions
+    minimumBy lessOpen positions
   where
     cellLength pos     = case getCell b pos of
-                              OneOf vs -> IS.size vs
-                              Fixed _  -> 0 -- never reached
+                              OneOf (Options vs) -> popCount vs
+                              Fixed _            -> error "Unexpected Fixed"
     lessOpen pos1 pos2 = compare (cellLength pos1) (cellLength pos2)
 
-makeAGuess :: Int -> Board -> Maybe Board
-makeAGuess n board =
-   let opens     = openPositions board
-       boards    = concatMap fixOne opens
-       solutions = trace (show (head opens, length opens, length boards, getCell board (head opens))) $
-                   map (solve (n+1) . pruneBoard) boards
-   in asum solutions
+makeAGuess :: Board -> Position -> Maybe Board
+makeAGuess board pos = makeAGuess' values
   where
-    fixOne pos = let OneOf vs = getCell board pos
-                 in map (setCell board pos . Fixed) . IS.toList $ vs
+    (OneOf v) = getCell board pos
+    values    = optionsToList v
 
-solve :: Int -> Board -> Maybe Board
-solve n board
+    makeAGuess' []     = Nothing
+    makeAGuess' (v:vs) =
+      case solve . setCell board pos $ Fixed v of
+           Just soln -> Just soln
+           Nothing   -> makeAGuess' vs
+
+solve :: Board -> Maybe Board
+solve b
   | not (isValid board) = Nothing
   | isFinished board    = Just board
-  | otherwise           = traceShow n $ makeAGuess n board
+  | otherwise           = makeAGuess board (pickPosition board)
+  where
+    board = pruneBoard b
