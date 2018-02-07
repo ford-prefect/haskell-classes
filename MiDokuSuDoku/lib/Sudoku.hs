@@ -37,7 +37,7 @@ positionToIndex :: Position -> Int
 positionToIndex (r, c) = r * 9 + c
 
 getCell :: Board -> Position -> Cell
-getCell b p = b V.! positionToIndex p
+getCell b p = b `V.unsafeIndex` positionToIndex p
 
 setCell :: Board -> Position -> Cell -> Board
 setCell b p cell = V.modify (\v -> MV.write v (positionToIndex p) cell) b
@@ -52,7 +52,7 @@ blocks :: [[Int]]
 blocks =  [ [ positionToIndex (r + br*3, c + bc * 3) | r <- [0..2], c <- [0..2] ] | br <- [0..2], bc <- [0..2] ]
 
 getGroup :: Board -> [Int] -> Group
-getGroup b is = zip is $ map (b V.!) is
+getGroup b is = zip is $ map (V.unsafeIndex b) is
 
 allGroups :: [[Int]]
 allGroups = rows ++ columns ++ blocks
@@ -113,7 +113,7 @@ isValid b = noEmptyOneOf && allUniqueFixed
     unique g = (popCount . foldl (.|.) 0 . map (getFixed . snd) $ g) == length g
 
 pruneGroup :: Board -> [Int] -> Board
-pruneGroup b g = b V.// prunedGroup
+pruneGroup b g = b `V.unsafeUpd` prunedGroup
   where
     grp         = getGroup b g
     prunedGroup = map pruneCell grp
