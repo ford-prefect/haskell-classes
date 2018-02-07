@@ -1,10 +1,11 @@
 module Sudoku where
 
+import Control.Monad (foldM)
 import Data.Bits ((.|.), (.&.), complement, countTrailingZeros, popCount, setBit, testBit)
 import Data.Char (digitToInt, isDigit)
 import Data.Foldable (asum)
 import Data.List (group, intercalate, minimumBy, sort)
-import Data.Maybe (isNothing, mapMaybe)
+import Data.Maybe (isNothing, fromJust, mapMaybe)
 
 import qualified Data.Vector as V
 import qualified Data.Vector.Mutable as MV
@@ -112,11 +113,11 @@ isValid b = noEmptyOneOf && allUniqueFixed
 
     unique g = (popCount . foldl (.|.) 0 . map (getFixed . snd) $ g) == length g
 
-pruneGroup :: Board -> [Int] -> Board
-pruneGroup b g = b `V.unsafeUpd` prunedGroup
+pruneGroup :: Board -> [Int] -> Maybe Board
+pruneGroup b g = V.unsafeUpd b <$> prunedGroup
   where
     grp         = getGroup b g
-    prunedGroup = map pruneCell grp
+    prunedGroup = mapM pruneCell grp
 
     fixeds      = map (getFixed . snd)
                 . filter (isFixed . snd)
@@ -133,28 +134,29 @@ pruneGroup b g = b `V.unsafeUpd` prunedGroup
 
     allClumps   = clumps 2 ++ clumps 3
 
-    pruneCell (i, Fixed v)  = (i, Fixed v)
+    pruneCell (i, Fixed v)  = Just (i, Fixed v)
     pruneCell (i, OneOf (Options vs)) =
       let
         del = foldl (.|.) 0 $
                 if vs `notElem` allClumps
                 then fixeds ++ allClumps
                 else fixeds
+        opts = vs .&. complement del .&. allOptions
       in
-        (i, newCell $ vs .&. complement del .&. allOptions)
+        case popCount opts of
+             0 -> Nothing
+             1 -> Just (i, Fixed opts)
+             _ -> Just (i, OneOf . Options $ opts)
 
-    newCell opts = if popCount opts == 1
-                   then Fixed opts
-                   else OneOf . Options $ opts
-
-pruneBoard :: Board -> Board
+pruneBoard :: Board -> Maybe Board
 pruneBoard b =
   let
-    newB      = foldl pruneGroup b allGroups
+    newB      = foldM pruneGroup b allGroups
   in
-    if b == newB
-    then b
-    else pruneBoard newB
+    case newB of
+         Nothing           -> Nothing
+         Just b' | b' == b -> Just b
+         Just b'           -> pruneBoard b'
 
 pickPosition :: Board -> (Int, Int)
 pickPosition b =
@@ -178,8 +180,10 @@ makeAGuess board pos = asum solutions
 
 solve :: Board -> Maybe Board
 solve b
+  | isNothing mBoard    = Nothing
   | not (isValid board) = Nothing
   | isFinished board    = Just board
   | otherwise           = makeAGuess board (pickPosition board)
   where
-    board = pruneBoard b
+    mBoard = pruneBoard b
+    board  = fromJust mBoard
