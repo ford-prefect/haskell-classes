@@ -3,7 +3,7 @@ module Sudoku where
 import Data.Bits ((.|.), (.&.), complement, countTrailingZeros, popCount, setBit, testBit)
 import Data.Char (digitToInt, isDigit)
 import Data.Foldable (asum)
-import Data.List (intercalate, minimumBy)
+import Data.List (group, intercalate, minimumBy, sort)
 import Data.Maybe (isNothing, mapMaybe)
 
 import qualified Data.Vector as V
@@ -115,20 +115,31 @@ isValid b = noEmptyOneOf && allUniqueFixed
 pruneGroup :: Board -> [Int] -> Board
 pruneGroup b g = b V.// prunedGroup
   where
-    group       = getGroup b g
-    prunedGroup = map pruneCell group
+    grp         = getGroup b g
+    prunedGroup = map pruneCell grp
 
-    fixeds      = map (getFixed . snd) . filter (isFixed . snd) $ group
-    --clumps n  = [ vs | OneOf vs <- groupList,
-    --                   IS.size vs == n,
-    --                   lngth (elemIndices (OneOf vs) groupList) == n ]
-    --allClumps = clumps 2 ++ clumps 3
-    --all       = IS.unions $ fixeds : allClumps
+    fixeds      = map (getFixed . snd)
+                . filter (isFixed . snd)
+                $ grp
+
+    clumps n    = map head
+                . filter (\x -> n == length x)
+                . group
+                . sort
+                . filter (\x -> n == popCount x)
+                . map ((\(OneOf (Options vs)) -> vs) . snd)
+                . filter (not . isFixed . snd)
+                $ grp
+
+    allClumps   = clumps 2 ++ clumps 3
 
     pruneCell (i, Fixed v)  = (i, Fixed v)
     pruneCell (i, OneOf (Options vs)) =
       let
-        del = foldl (.|.) 0 fixeds
+        del = foldl (.|.) 0 $
+                if vs `notElem` allClumps
+                then fixeds ++ allClumps
+                else fixeds
       in
         (i, newCell $ vs .&. complement del .&. allOptions)
 
