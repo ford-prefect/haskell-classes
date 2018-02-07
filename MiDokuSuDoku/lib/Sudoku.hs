@@ -127,10 +127,7 @@ pruneGroup b g = V.unsafeUpd b <$> prunedGroup
                 . filter (\x -> n == length x)
                 . group
                 . sort
-                . filter (\x -> n == popCount x)
-                . map ((\(OneOf (Options vs)) -> vs) . snd)
-                . filter (not . isFixed . snd)
-                $ grp
+                $ [ vs | (_, OneOf (Options vs)) <- grp, popCount vs == n ]
 
     allClumps   = clumps 2 ++ clumps 3
 
