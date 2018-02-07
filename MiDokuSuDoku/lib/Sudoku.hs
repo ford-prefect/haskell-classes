@@ -22,7 +22,7 @@ type Position = (Int, Int)
 data Cell = Fixed Int | OneOf Options deriving (Eq, Ord, Show)
 
 type Board = V.Vector Cell
-type Group = V.Vector (Int, Cell)
+type Group = [(Int, Cell)]
 
 allOptions :: Int
 allOptions = foldl setBit 0 [1..9]
@@ -42,38 +42,28 @@ getCell b p = b V.! positionToIndex p
 setCell :: Board -> Position -> Cell -> Board
 setCell b p cell = V.modify (\v -> MV.write v (positionToIndex p) cell) b
 
-getRow :: Board -> Int -> Group
-getRow b r = V.imap (\i v -> (r*9 + i, v)) row
-  where
-    row = V.take 9 . V.drop (r * 9) $ b
+rows :: [[Int]]
+rows = [ [ positionToIndex (r, c) | c <- [0..8] ] | r <- [0..8] ]
 
-getColumn :: Board -> Int -> Group
-getColumn b c = V.imap (\i v -> (i*9 + c, v)) col
-  where
-    col = V.ifilter (\i _ -> i `mod` 9 == c) b
+columns :: [[Int]]
+columns =  [ [ positionToIndex (r, c) | r <- [0..8] ] | c <- [0..8] ]
 
-getBlock :: Board -> (Int, Int) -> Group
-getBlock b p@(r, c) = V.imap (\i v -> (cellPos i, v)) block
-  where
-    cellPos i = r*3*9 + c*3 + i `mod` 3 + (i `div` 3)*9
-    block = V.ifilter (\i _ -> p == blockPos i) b
-    blockPos i = ((i `div` 9) `quot` 3, (i `mod` 9) `quot` 3)
+blocks :: [[Int]]
+blocks =  [ [ positionToIndex (r + br*3, c + bc * 3) | r <- [0..2], c <- [0..2] ] | br <- [0..2], bc <- [0..2] ]
 
-allGroups :: Board -> [Group]
-allGroups b =
-  let rows   = map (getRow b) [0..8]
-      cols   = map (getColumn b) [0..8]
-      blocks = map (getBlock b) [ (r, c) | r <- [0..2], c <- [0..2] ]
-  in
-      rows ++ cols ++ blocks
+getGroup :: Board -> [Int] -> Group
+getGroup b is = zip is $ map (b V.!) is
+
+allGroups :: [[Int]]
+allGroups = rows ++ columns ++ blocks
 
 prettyBoard :: Board -> String
 prettyBoard board = intercalate "\n" $
-                      map (prettyRow . V.toList . snd . V.unzip . getRow board) [0..2] ++
+                      map (prettyRow . map snd . getGroup board . (!!) rows) [0..2] ++
                       divider ++
-                      map (prettyRow . V.toList . snd . V.unzip . getRow board) [3..5] ++
+                      map (prettyRow . map snd . getGroup board . (!!) rows) [3..5] ++
                       divider ++
-                      map (prettyRow . V.toList . snd . V.unzip . getRow board) [6..8]
+                      map (prettyRow . map snd . getGroup board . (!!) rows) [6..8]
   where
     prettyCell (Fixed v) = show $ countTrailingZeros v
     prettyCell _         = "."
@@ -118,17 +108,17 @@ isValid :: Board -> Bool
 isValid b = noEmptyOneOf && allUniqueFixed
   where
     noEmptyOneOf   = OneOf (Options 0) `notElem` b
-    allUniqueFixed = all (unique . V.filter (isFixed . snd)) . allGroups $ b
+    allUniqueFixed = all (unique . filter (isFixed . snd) . getGroup b) allGroups
 
-    unique g = (popCount . V.foldl (.|.) 0 . V.map (getFixed . snd) $ g) == V.length g
+    unique g = (popCount . foldl (.|.) 0 . map (getFixed . snd) $ g) == length g
 
-pruneGroup :: Board -> (Board -> Group) -> Board
-pruneGroup b getGroup = V.update b prunedGroup
+pruneGroup :: Board -> [Int] -> Board
+pruneGroup b g = b V.// prunedGroup
   where
-    group       = getGroup b
-    prunedGroup = V.map pruneCell group
+    group       = getGroup b g
+    prunedGroup = map pruneCell group
 
-    fixeds      = V.map (getFixed . snd) . V.filter (isFixed . snd) $ group
+    fixeds      = map (getFixed . snd) . filter (isFixed . snd) $ group
     --clumps n  = [ vs | OneOf vs <- groupList,
     --                   IS.size vs == n,
     --                   lngth (elemIndices (OneOf vs) groupList) == n ]
@@ -138,7 +128,7 @@ pruneGroup b getGroup = V.update b prunedGroup
     pruneCell (i, Fixed v)  = (i, Fixed v)
     pruneCell (i, OneOf (Options vs)) =
       let
-        del = V.foldl (.|.) 0 fixeds
+        del = foldl (.|.) 0 fixeds
       in
         (i, newCell $ vs .&. complement del .&. allOptions)
 
@@ -149,10 +139,7 @@ pruneGroup b getGroup = V.update b prunedGroup
 pruneBoard :: Board -> Board
 pruneBoard b =
   let
-    getGroups = map (flip getRow) [0..8] ++
-                map (flip getColumn) [0..8] ++
-                map (flip getBlock) [ (r, c) | r <- [0..2], c <- [0..2] ]
-    newB      = foldl pruneGroup b getGroups
+    newB      = foldl pruneGroup b allGroups
   in
     if b == newB
     then b
