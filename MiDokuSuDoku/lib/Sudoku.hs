@@ -1,6 +1,6 @@
 module Sudoku where
 
-import Data.Bits ((.&.), complement, countTrailingZeros, popCount, setBit, testBit)
+import Data.Bits ((.|.), (.&.), complement, countTrailingZeros, popCount, setBit, testBit)
 import Data.Char (digitToInt, isDigit)
 import Data.Foldable (asum)
 import Data.List (intercalate, minimumBy)
@@ -75,7 +75,7 @@ prettyBoard board = intercalate "\n" $
                       divider ++
                       map (prettyRow . V.toList . snd . V.unzip . getRow board) [6..8]
   where
-    prettyCell (Fixed v) = show v
+    prettyCell (Fixed v) = show $ countTrailingZeros v
     prettyCell _         = "."
 
     prettyRow row = prettyRowBlock (take 3 row           ) ++ " | " ++
@@ -97,12 +97,15 @@ readBoard b =
   where
     readCell c
       | c == '.'              = Just emptyCell
-      | isDigit c && c /= '0' = Just . Fixed . digitToInt $ c
+      | isDigit c && c /= '0' = Just . setFixed . digitToInt $ c
       | otherwise             = Nothing
 
 getFixed :: Cell -> Int
 getFixed (Fixed f) = f
 getFixed (OneOf _) = error "Unexpected OneOf"
+
+setFixed :: Int -> Cell
+setFixed = Fixed . setBit 0
 
 isFixed :: Cell -> Bool
 isFixed (Fixed _) = True
@@ -117,8 +120,7 @@ isValid b = noEmptyOneOf && allUniqueFixed
     noEmptyOneOf   = OneOf (Options 0) `notElem` b
     allUniqueFixed = all (unique . V.filter (isFixed . snd)) . allGroups $ b
 
-    zero     = 0 :: Int
-    unique g = (popCount . V.foldl setBit zero . V.map (getFixed . snd) $ g) == V.length g
+    unique g = (popCount . V.foldl (.|.) 0 . V.map (getFixed . snd) $ g) == V.length g
 
 pruneGroup :: Board -> (Board -> Group) -> Board
 pruneGroup b getGroup = V.update b prunedGroup
@@ -136,12 +138,12 @@ pruneGroup b getGroup = V.update b prunedGroup
     pruneCell (i, Fixed v)  = (i, Fixed v)
     pruneCell (i, OneOf (Options vs)) =
       let
-        del = V.foldl setBit 0 fixeds
+        del = V.foldl (.|.) 0 fixeds
       in
         (i, newCell $ vs .&. complement del .&. allOptions)
 
     newCell opts = if popCount opts == 1
-                   then Fixed . countTrailingZeros $ opts
+                   then Fixed opts
                    else OneOf . Options $ opts
 
 pruneBoard :: Board -> Board
@@ -173,7 +175,7 @@ makeAGuess board pos = asum solutions
   where
     (OneOf v) = getCell board pos
     values    = optionsToList v
-    boards    = map (setCell board pos . Fixed) values
+    boards    = map (setCell board pos . setFixed) values
     solutions = map solve boards
 
 solve :: Board -> Maybe Board
