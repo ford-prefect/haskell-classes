@@ -20,7 +20,11 @@ optionsToList (Options o) = filter (testBit o) [1..9]
 
 type Position = (Int, Int)
 
-data Cell = Fixed Int | OneOf Options deriving (Eq, Ord, Show)
+data Cell = Fixed Int | OneOf Options deriving (Eq, Ord)
+
+instance Show Cell where
+  show (Fixed v) = "Fixed " ++ show (countTrailingZeros v)
+  show (OneOf o) = "OneOf " ++ show o
 
 type Board = V.Vector Cell
 type Group = [(Int, Cell)]
