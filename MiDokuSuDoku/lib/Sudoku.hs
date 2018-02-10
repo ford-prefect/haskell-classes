@@ -1,10 +1,11 @@
 module Sudoku where
 
+import Control.Applicative ((<|>))
 import Control.Monad (foldM)
 import Data.Bits ((.|.), (.&.), complement, countTrailingZeros, popCount, setBit, testBit)
 import Data.Char (digitToInt, isDigit)
 import Data.Foldable (asum)
-import Data.List (group, intercalate, minimumBy, sort)
+import Data.List ((\\), group, intercalate, minimumBy, sort)
 import Data.Maybe (isNothing, fromJust, mapMaybe)
 
 import qualified Data.Vector as V
@@ -135,19 +136,32 @@ pruneGroup b g = V.unsafeUpd b <$> prunedGroup
 
     allClumps   = clumps 2 ++ clumps 3
 
+    uniqOption p n = let
+                       cellsWithN = filter (flip hasOption n . snd) p
+                     in
+                       if length cellsWithN == 1
+                       then Just . fmap (const . setFixed $ n) . head $ cellsWithN
+                       else Nothing
+
+    hasOption (OneOf (Options o)) n = testBit o n
+    hasOption (Fixed _) _           = False
+
+    uniques = mapMaybe (uniqOption grp) ([1..9] \\ map countTrailingZeros fixeds)
+
     pruneCell (i, Fixed v)  = Just (i, Fixed v)
     pruneCell (i, OneOf (Options vs)) =
       let
-        del = foldl (.|.) 0 $
-                if vs `notElem` allClumps
-                then fixeds ++ allClumps
-                else fixeds
-        opts = vs .&. complement del .&. allOptions
+        elim    = foldl (.|.) 0 $
+                   if vs `notElem` allClumps
+                   then fixeds ++ allClumps
+                   else fixeds
+        opts    = vs .&. complement elim .&. allOptions
+        mUnique = lookup i uniques
       in
-        case popCount opts of
-             0 -> Nothing
-             1 -> Just (i, Fixed opts)
-             _ -> Just (i, OneOf . Options $ opts)
+      ((,) i <$> mUnique) <|> case popCount opts of
+                                0 -> Nothing
+                                1 -> Just (i, Fixed opts)
+                                _ -> Just (i, OneOf . Options $ opts)
 
 pruneBoard :: Board -> Maybe Board
 pruneBoard b =
