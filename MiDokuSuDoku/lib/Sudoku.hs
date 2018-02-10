@@ -95,9 +95,9 @@ readBoard b =
       | isDigit c && c /= '0' = Just . setFixed . digitToInt $ c
       | otherwise             = Nothing
 
-getFixed :: Cell -> Int
-getFixed (Fixed f) = f
-getFixed (OneOf _) = error "Unexpected OneOf"
+getValue :: Cell -> Int
+getValue (Fixed f) = f
+getValue (OneOf (Options o)) = o
 
 setFixed :: Int -> Cell
 setFixed = Fixed . setBit 0
@@ -115,7 +115,7 @@ isValid b = noEmptyOneOf && allUniqueFixed
     noEmptyOneOf   = OneOf (Options 0) `notElem` b
     allUniqueFixed = all (unique . filter (isFixed . snd) . getGroup b) allGroups
 
-    unique g = (popCount . foldl (.|.) 0 . map (getFixed . snd) $ g) == length g
+    unique g = (popCount . foldl (.|.) 0 . map (getValue . snd) $ g) == length g
 
 pruneGroup :: Board -> [Int] -> Maybe Board
 pruneGroup b g = V.unsafeUpd b <$> prunedGroup
@@ -123,7 +123,7 @@ pruneGroup b g = V.unsafeUpd b <$> prunedGroup
     grp         = getGroup b g
     prunedGroup = mapM pruneCell grp
 
-    fixeds      = map (getFixed . snd)
+    fixeds      = map (getValue . snd)
                 . filter (isFixed . snd)
                 $ grp
 
