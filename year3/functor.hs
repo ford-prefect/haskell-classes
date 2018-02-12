@@ -1,5 +1,8 @@
 module Functor where
 
+import Control.Applicative
+import Data.Monoid ((<>))
+
 newtype Identity a = Identity a deriving (Show)
 
 instance Functor Identity where
@@ -17,6 +20,14 @@ instance Applicative Maybe' where
   Just' f <*> Just' v = Just' (f v)
   _       <*> _       = Nothing'
 
+instance Alternative Maybe' where
+  empty = Nothing'
+
+  Just' j1 <|> _        = Just' j1
+  _        <|> Just' j2 = Just' j2
+  _        <|> _        = Nothing'
+
+
 
 data Either' a b = Left' a | Right' b deriving (Show)
 
@@ -29,6 +40,13 @@ instance Applicative (Either' a) where
   Right' f <*> Right' v = Right' (f v)
   Left' e1 <*> _        = Left' e1
   _        <*> Left' e2 = Left' e2
+
+instance Monoid a => Alternative (Either' a) where
+  empty = Left' mempty
+
+  Right' r1 <|> _         = Right' r1
+  _         <|> Right' r2 = Right' r2
+  Left' l1  <|> Left' l2  = Left' (l1 <> l2)
 
 
 data List a = Cons a (List a) | Empty deriving (Show)
@@ -45,6 +63,10 @@ instance Applicative List where
   pure x = Cons x Empty
   (Cons f fs) <*> vs = fmap f vs `lappend` (fs <*> vs)
   _           <*> _  = Empty
+
+instance Alternative List where
+  empty = Empty
+  (<|>) = lappend
 
 
 data BST a = Node a (BST a) (BST a) | EmptyNode deriving (Show)
