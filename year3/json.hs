@@ -2,7 +2,7 @@ module Json where
 
 import Control.Applicative
 import Control.Monad (replicateM)
-import Data.Char (chr, digitToInt, isDigit, isHexDigit, isSpace)
+import Data.Char (chr, digitToInt, isControl, isDigit, isHexDigit, isSpace)
 import Data.Functor
 
 newtype JsonStr = JsonStr String
@@ -119,7 +119,7 @@ jsonString = JsonString <$> jsonStr
 jsonStr :: Parser String JsonStr
 jsonStr = JsonStr <$> (char '"' *> many jsonChar <* char '"')
   where
-    jsonChar =  satisfy (`notElem` ['"', '\\'])
+    jsonChar =  satisfy (\c -> not (c == '\"' || c == '\\' || isControl c))
             <|> word "\\\"" $> '"'
             <|> word "\\\\" $> '\\'
             <|> word "\\/"  $> '/'
