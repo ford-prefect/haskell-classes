@@ -10,15 +10,18 @@ newtype JsonStr = JsonStr String
 instance Show JsonStr where
   show (JsonStr s) = show s
 
-data JsonNum = JsonNum { signif :: Integer
-                       , expo   :: Integer
+data JsonNum = JsonNum { negative :: Bool
+                       , signif   :: Integer
+                       , expo     :: Integer
                        }
 
 instance Show JsonNum where
-  show num@(JsonNum n e) = show n ++ "e" ++ show e ++ " (" ++ show (toDouble num) ++ ")"
+  show num@(JsonNum n s e) = (if n then "-" else "") ++
+                             show s ++ "e" ++ show e ++
+                             " (" ++ show (toDouble num) ++ ")"
 
 toDouble :: JsonNum -> Double
-toDouble (JsonNum n e) = fromIntegral n * 10 ^^ e
+toDouble (JsonNum n s e) = (if n then negate else id) $ fromIntegral s * 10 ^^ e
 
 data JsonValue = JsonString JsonStr
                | JsonNumber JsonNum
@@ -130,24 +133,31 @@ jsonStr = JsonStr <$> (char '"' *> many jsonChar <* char '"')
 jsonNumber :: Parser String JsonValue
 jsonNumber = JsonNumber <$> (jsonIntFracExp <|> jsonIntExp <|> jsonIntFrac <|> jsonInt')
   where
-    jsonIntExp = JsonNum <$> jsonInt <*> jsonExp
+    jsonIntExp = JsonNum <$> jsonSign <*> jsonInt False <*> jsonExp
 
-    jsonIntFrac = makeIntFrac <$> jsonInt <*> jsonFrac
+    jsonSign = (char '-' $> True) <|> pure False
+
+    jsonIntFrac = makeIntFrac <$> jsonSign <*> jsonInt True <*> jsonFrac
     -- makeIntFrac significand mantissa
-    makeIntFrac s m = JsonNum (foldl (\num d -> num * 10 + fromIntegral d) s m)
-                              (fromIntegral . negate . length $ m)
+    makeIntFrac n s m = JsonNum n
+                                (foldl (\num d -> num * 10 + fromIntegral d) s m)
+                                (fromIntegral . negate . length $ m)
 
-    jsonIntFracExp = (\(JsonNum s e) exp -> JsonNum s (e + exp)) <$> jsonIntFrac <*> jsonExp
+    jsonIntFracExp = (\(JsonNum n s e) exp -> JsonNum n s (e + exp))
+                     <$> jsonIntFrac
+                     <*> jsonExp
 
-    jsonInt' = JsonNum <$> jsonInt <*> pure 0
-    jsonInt  = negate <$> (char '-' *> jsonUint) <|> jsonUint
+    jsonInt' = JsonNum <$> jsonSign <*>  jsonInt False <*> pure 0
+    jsonInt leadingZero = negate <$> (char '-' *> jsonUint leadingZero)
+                                 <|> jsonUint leadingZero
 
-    jsonUint = (\d ds -> digitsToNumber 10 (d:ds)) <$> digit19 <*> some digit
+    jsonUint lz = (\d ds -> digitsToNumber 10 (d:ds)) <$> (if lz then digit19 else digit)
+                                                      <*> some digit
               <|> fromIntegral <$> digit
 
     jsonFrac = char '.' *> some digit
 
-    jsonExp = (char 'e' <|> char 'E') *> optional (char '+') *> jsonInt
+    jsonExp = (char 'e' <|> char 'E') *> optional (char '+') *> jsonInt False
 
 jsonArray :: Parser String JsonValue
 jsonArray = JsonArray <$> (char '[' *> eatSpaces (json `sepBy` char ',') <* char ']')
