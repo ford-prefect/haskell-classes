@@ -160,7 +160,7 @@ jsonNumber = JsonNumber <$> (jsonIntFracExp <|> jsonIntExp <|> jsonIntFrac <|> j
     jsonExp = (char 'e' <|> char 'E') *> optional (char '+') *> jsonInt False
 
 jsonArray :: Parser String JsonValue
-jsonArray = JsonArray <$> (char '[' *> eatSpaces (json `sepBy` char ',') <* char ']')
+jsonArray = JsonArray <$> (char '[' *> (json `sepBy` char ',') <* char ']')
 
 jsonObject :: Parser String JsonValue
 jsonObject = JsonObject <$> (char '{' *> pair `sepBy` char ',' <* char '}')
