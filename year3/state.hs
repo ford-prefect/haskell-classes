@@ -9,6 +9,9 @@ getState = State $ \s -> (s, s)
 setState :: s -> State s ()
 setState s = State . const $  (s, ())
 
+modifyState :: (s -> s) -> State s ()
+modifyState f = State $ \s -> (f s, ())
+
 instance Functor (State s) where
   fmap f fa = State $ \oldState -> let (newState, a) = runState fa oldState
                                    in (newState, f a)
@@ -35,3 +38,5 @@ addTwo' x =
   getState                            -- State Counter Counter
   >>= \count -> setState (count + 1)  -- Counter -> State Counter ()
   >>  return (x + 2)                  -- State Counter Int
+
+-- runState (addTwo 10 >>= addTwo >>= addTwo) 0
